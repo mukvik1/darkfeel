@@ -1,5 +1,5 @@
 # DARK FEEL
 
-Official website and Telegram Events source. Hosted on Railway outside Ukraine.
+Website deployed to Railway outside Ukraine. Start with `npm start`; static public files are served by web.mjs. `/api/events` proxies the isolated Telegram Events API.
 
-No runtime secrets or event database are stored in this repository.
+Telegram bot source is under telegram-events. Runtime secrets remain in Railway Variables; invitations, editors and event data persist on the bot's Railway /data volume in SFO. Do not commit runtime data.

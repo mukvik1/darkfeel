@@ -1,0 +1,1 @@
+{"name":"darkfeel-web","private":true,"type":"module","scripts":{"start":"node web.mjs"},"engines":{"node":">=22"}}

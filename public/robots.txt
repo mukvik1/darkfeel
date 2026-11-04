@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://darkfeel.com.ua/sitemap.xml
