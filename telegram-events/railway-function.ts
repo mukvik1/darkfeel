@@ -1,3 +1,44 @@
+import {DatabaseSync} from 'node:sqlite';
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const siteHosts=new Set(['darkfeel.com.ua','www.darkfeel.com.ua']);
+export function validVisit(data,origin,agent='') {
+  try{if(!siteHosts.has(new URL(origin).hostname))return false;}catch{return false;}
+  return !!data && ['event','visitor','session'].every(k=>typeof data[k]==='string'&&uuid.test(data[k])) && typeof data.path==='string'&&/^\/[a-zA-Z0-9_./%\-]{0,250}$/.test(data.path) && typeof data.source==='string'&&/^[a-zA-Z0-9_.\-]{1,100}$/.test(data.source) && !/bot|crawler|spider|headless/i.test(agent);
+}
+function kyivParts(now){return Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Kyiv',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date(now)).filter(p=>p.type!=='literal').map(p=>[p.type,Number(p.value)]));}
+export function reportStart(days,now) {
+  if(![0,1,7,30].includes(days))throw new Error('Invalid report period');
+  if(!days)return '';
+  if(days!==1)return new Date(now-days*86400000).toISOString();
+  const p=kyivParts(now),target=Date.UTC(p.year,p.month-1,p.day);let guess=target;
+  for(let i=0;i<3;i++){const q=kyivParts(guess);const offset=Date.UTC(q.year,q.month-1,q.day,q.hour,q.minute,q.second)-guess;guess=target-offset;}
+  return new Date(guess).toISOString();
+}
+export function createAnalytics(filename,{now=()=>Date.now()}={}) {
+  const db=new DatabaseSync(filename);db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=3000;
+    CREATE TABLE IF NOT EXISTS website_visits(event_id TEXT PRIMARY KEY,visitor_id TEXT NOT NULL,session_id TEXT NOT NULL,page TEXT NOT NULL,source TEXT NOT NULL,created_at TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS website_visits_created ON website_visits(created_at);
+    CREATE INDEX IF NOT EXISTS website_visits_visitor_created ON website_visits(visitor_id,created_at);`);
+  return {
+    record(data,origin,agent=''){
+      if(!validVisit(data,origin,agent))return false;
+      const cutoff=new Date(now()-86400000).toISOString();
+      const count=db.prepare('SELECT count(*) n FROM website_visits WHERE visitor_id=? AND created_at>?').get(data.visitor,cutoff).n;
+      if(count>=500)return false;
+      const result=db.prepare('INSERT OR IGNORE INTO website_visits VALUES(?,?,?,?,?,?)').run(data.event,data.visitor,data.session,data.path,data.source,new Date(now()).toISOString());
+      return Number(result.changes)>0;
+    },
+    report(days=0){
+      const start=reportStart(days,now());
+      const total=db.prepare('SELECT count(*) views,count(DISTINCT visitor_id) visitors,count(DISTINCT session_id) sessions FROM website_visits WHERE created_at>=?').get(start);
+      const first=db.prepare('SELECT min(created_at) first FROM website_visits').get().first;
+      const pages=db.prepare('SELECT page,count(*) n FROM website_visits WHERE created_at>=? GROUP BY page ORDER BY n DESC,page LIMIT 5').all(start);
+      const sources=db.prepare('SELECT source,count(DISTINCT session_id) n FROM website_visits WHERE created_at>=? GROUP BY source ORDER BY n DESC,source LIMIT 5').all(start);
+      return ['📊 darkfeel.com.ua',days===0?'📅 За всё время':days===1?'📅 Сегодня · Киев':`📅 Последние ${days} дней`,'',`👥 Посетители: ${total.visitors}`,`🚪 Визиты: ${total.sessions}`,`👁 Просмотры: ${total.views}`,'','📄 Популярные страницы',...pages.map(r=>`${r.page} — ${r.n}`),'','🔗 Источники визитов',...sources.map(r=>`${r.source==='direct'?'Прямые переходы':r.source} — ${r.n}`),'',first?'📍 Первое посещение: '+new Intl.DateTimeFormat('ru-RU',{timeZone:'Europe/Kyiv',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(first)):'⏳ Данных пока нет. Сбор начинается после установки счётчика.','Посетители считаются по анонимному ID браузера.'].join('\n');
+    },close(){db.close();}
+  };
+}
+
 import {randomBytes,createHash} from 'node:crypto';
 export function validDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value+'T12:00:00Z')) && new Date(value+'T12:00:00Z').toISOString().slice(0,10)===value;
@@ -34,7 +75,7 @@ const clean=(field,value)=>field==='date'?parseDate(value):field==='time'?parseT
 const dateLabel=date=>new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'long',year:'numeric',weekday:'long',timeZone:'UTC'}).format(new Date(date+'T12:00:00Z'));
 const eventText=e=>`${e.visibility==='hidden'?'🙈':'🌐'} ${dateLabel(e.date)}${e.time?' · '+e.time:''}\n${e.venue} · ${e.city}, ${e.country}${e.ticket_url?'\n'+e.ticket_url:''}`;
 export const publicEvents=data=>data.events.filter(e=>e.visibility!=='hidden').map(({id,date,time,venue,city,country,ticket_url})=>({id,date,time:time||null,venue,city,country,ticket_url})).sort((a,b)=>a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||''));
-export function createBot({allowedIds,read,save,reply,edit,answer=async()=>{},botUsername='darkfeelevents_bot',now=()=>Date.now(),today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Kyiv',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}) {
+export function createBot({allowedIds,read,save,reply,edit,answer=async()=>{},analyticsReport=()=> 'Статистика временно недоступна.',botUsername='darkfeelevents_bot',now=()=>Date.now(),today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Kyiv',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}) {
   const drafts=new Map();
   return async function handle(update) {
     const q=update.callback_query,m=q?.message||update.message,from=q?.from||m?.from;
@@ -84,7 +125,11 @@ export function createBot({allowedIds,read,save,reply,edit,answer=async()=>{},bo
     ]));};
     if(cb==='df_menu'||command==='/start'||command==='/help'){drafts.delete(user);return menu();}
     if(cb==='df_cancel'||command==='/cancel'){drafts.delete(user);return menu('Отменено.');}
-    if(cb==='df_stats'||command==='/stats')return say('📊 Статистика\n\nДобавим после запуска сайта на основном хостинге.',backMenu());
+    if(cb==='df_stats'||command==='/stats'||/^df_stats:(0|1|7|30)$/.test(cb||'')){
+      const days=cb?.startsWith('df_stats:')?Number(cb.split(':')[1]):0;
+      let report;try{report=await analyticsReport(days);}catch{report='Статистика временно недоступна. Попробуй позже.';}
+      return say(report,keyboard([[button('Сегодня','df_stats:1'),button('7 дней','df_stats:7'),button('30 дней','df_stats:30')],[button('За всё время','df_stats:0')],[button('Обновить',`df_stats:${days}`)],[button('🏠 Меню','df_menu')]]));
+    }
     if(cb==='df_list'||['/events','/list'].includes(command)){drafts.delete(user);return list();}
     if(cb?.startsWith('df_page:'))return list(Number(cb.split(':')[1])||0);
     if(cb==='df_add'||command==='/add'){drafts.set(user,{step:'date',event:{}});return say('Дата выступления в формате ДД.ММ.ГГГГ:\nНапример: 24.12.2026',cancelMenu());}
@@ -125,17 +170,27 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 
+
 const token=process.env.TELEGRAM_BOT_TOKEN;
 const ids=new Set((process.env.TELEGRAM_ALLOWED_USER_IDS||'').split(',').map(s=>s.trim()).filter(Boolean));
 const dataDir=process.env.DATA_DIR||'/data';fs.mkdirSync(dataDir,{recursive:true});
+const analytics=createAnalytics(path.join(dataDir,'analytics.sqlite'));
 const file=path.join(dataDir,'events.json');
 let data=fs.existsSync(file)?JSON.parse(fs.readFileSync(file,'utf8')):{events:[],offset:0};
 if(!Array.isArray(data.events))throw new Error('Invalid persisted event data');
 function save(next){const temp=file+'.tmp';fs.writeFileSync(temp,JSON.stringify(next),{mode:0o600});fs.renameSync(temp,file);data=next;}
 const allowedOrigin=process.env.SITE_ORIGIN||'https://darkfeel-official.mukvik.chatgpt.site';
-http.createServer((req,res)=>{
+http.createServer(async(req,res)=>{
   res.setHeader('Access-Control-Allow-Origin',allowedOrigin);res.setHeader('Vary','Origin');
   res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');
+  if(req.method==='POST'&&req.url==='/api/dark-feel/analytics'){
+    let bytes=0,chunks=[];
+    try{for await(const chunk of req){bytes+=chunk.length;if(bytes>4096){res.statusCode=413;return res.end();}chunks.push(chunk);}
+      const payload=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      analytics.record(payload,req.headers['x-analytics-origin']||req.headers.origin||'',req.headers['user-agent']||'');
+      res.statusCode=204;return res.end();
+    }catch{res.statusCode=400;return res.end();}
+  }
   if(req.method==='GET'&&req.url==='/health'){res.end(JSON.stringify({ok:true,botConfigured:!!token&&ids.size>0}));return;}
   if(req.method==='GET'&&req.url?.split('?')[0]==='/api/dark-feel/events'){
     res.end(JSON.stringify({events:publicEvents(data)}));return;
@@ -146,7 +201,7 @@ async function telegram(method,body){
   const response=await fetch(`https://api.telegram.org/bot${token}/${method}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(45000)});
   const result=await response.json();if(!result.ok){const error=new Error('Telegram request failed');error.code=result.error_code;throw error;}return result.result;
 }
-const handle=createBot({allowedIds:ids,read:()=>data,save,botUsername:process.env.TELEGRAM_BOT_USERNAME,
+const handle=createBot({allowedIds:ids,read:()=>data,save,analyticsReport:days=>analytics.report(days),botUsername:process.env.TELEGRAM_BOT_USERNAME,
   reply:(chat_id,text,reply_markup)=>telegram('sendMessage',{chat_id,text,reply_markup,link_preview_options:{is_disabled:true}}),
   edit:(chat_id,message_id,text,reply_markup)=>telegram('editMessageText',{chat_id,message_id,text,reply_markup,link_preview_options:{is_disabled:true}}).catch(async error=>{if(error.code===400)return telegram('sendMessage',{chat_id,text,reply_markup});throw error;}),
   answer:(callback_query_id,text)=>telegram('answerCallbackQuery',{callback_query_id,text,show_alert:!!text})

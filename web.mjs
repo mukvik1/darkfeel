@@ -5,6 +5,17 @@ const root=path.resolve('public');
 const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.jpg':'image/jpeg','.pdf':'application/pdf','.xml':'application/xml; charset=utf-8','.txt':'text/plain; charset=utf-8'};
 http.createServer(async(req,res)=>{
  res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
+ if(req.method==='POST'&&req.url==='/api/analytics'){
+  res.setHeader('Cache-Control','no-store');
+  try{
+   const origin=new URL(req.headers.origin||'');
+   if(!['darkfeel.com.ua','www.darkfeel.com.ua'].includes(origin.hostname)){res.statusCode=403;return res.end();}
+   let bytes=0,chunks=[];for await(const chunk of req){bytes+=chunk.length;if(bytes>4096){res.statusCode=413;return res.end();}chunks.push(chunk);}
+   const body=Buffer.concat(chunks);JSON.parse(body.toString('utf8'));
+   const upstream=await fetch('https://darkfeel-events-bot-production.up.railway.app/api/dark-feel/analytics',{method:'POST',headers:{'Content-Type':'application/json','X-Analytics-Origin':origin.origin,'User-Agent':req.headers['user-agent']||''},body,signal:AbortSignal.timeout(10000)});
+   res.statusCode=upstream.ok?204:503;return res.end();
+  }catch{res.statusCode=503;return res.end();}
+ }
  if(!['GET','HEAD'].includes(req.method)){res.writeHead(405);return res.end();}
  const url=new URL(req.url,'http://localhost');
  if(url.pathname==='/health'){res.setHeader('Content-Type','application/json');return res.end('{"ok":true}');}

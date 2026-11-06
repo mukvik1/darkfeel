@@ -18,10 +18,14 @@ Until activated, Events shows “Dates to be announced.” No demo performances 
 
 ## Telegram interface
 
-Matches Kaya Lum Events inline navigation: Add performance, All events, Statistics. The add flow accepts DD.MM.YYYY or ISO dates, optional time/range, venue, city, country, optional ticket URL and public/hidden visibility. Event detail buttons edit fields, toggle visibility or delete after confirmation. Statistics is intentionally deferred. Existing saved event records remain compatible. Runtime data lives on the mounted /data volume.
+Matches Kaya Lum Events inline navigation: Add performance, All events, Statistics. The add flow accepts DD.MM.YYYY or ISO dates, optional time/range, venue, city, country, optional ticket URL and public/hidden visibility. Event detail buttons edit fields, toggle visibility or delete after confirmation. Statistics is connected to the production website through first-party anonymous analytics. Existing saved event records remain compatible. Runtime data lives on the mounted /data volume.
 
 Menu is shown by /start. Command registration is configured during startup; no broadcast is sent.
 
 ## Invitations
 
 The env allowlist remains the owner role. `/invite` generates a 24-hour, one-use Telegram deep link for an event editor. New invitations replace the owner's prior invitation. Only token hashes are stored; raw tokens are returned only in the reply to the owner. Redeeming requires a private `/start invite_TOKEN` update. The editor's numeric ID and inviter are persisted atomically with consumption of the invitation on /data, and editor authorization survives process restarts. Editors can manage performances but cannot issue invitations. Existing owners opening their own link do not consume it. Public event responses never expose invitations or editors.
+
+## Website statistics
+
+Tracker: public/analytics.js on darkfeel.com.ua and www.darkfeel.com.ua. Browser POSTs anonymous visitor/session/event UUIDs, pathname and source to same-origin /api/analytics. web.mjs proxies the record to the bot service, whose /data/analytics.sqlite stores counters separately from events.json. Reports are only available through authorized Telegram /stats and the inline statistics menu. Periods: Kyiv today, rolling 7 days, rolling 30 days and all time. No IP addresses, cookies, full referrer URLs or query strings are stored. Global Privacy Control, Do Not Track and automated browsers are skipped. Historical visits before tracker installation cannot be reconstructed.

@@ -34,7 +34,7 @@ const clean=(field,value)=>field==='date'?parseDate(value):field==='time'?parseT
 const dateLabel=date=>new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'long',year:'numeric',weekday:'long',timeZone:'UTC'}).format(new Date(date+'T12:00:00Z'));
 const eventText=e=>`${e.visibility==='hidden'?'🙈':'🌐'} ${dateLabel(e.date)}${e.time?' · '+e.time:''}\n${e.venue} · ${e.city}, ${e.country}${e.ticket_url?'\n'+e.ticket_url:''}`;
 export const publicEvents=data=>data.events.filter(e=>e.visibility!=='hidden').map(({id,date,time,venue,city,country,ticket_url})=>({id,date,time:time||null,venue,city,country,ticket_url})).sort((a,b)=>a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||''));
-export function createBot({allowedIds,read,save,reply,edit,answer=async()=>{},botUsername='darkfeelevents_bot',now=()=>Date.now(),today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Kyiv',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}) {
+export function createBot({allowedIds,read,save,reply,edit,answer=async()=>{},analyticsReport=()=> 'Статистика временно недоступна.',botUsername='darkfeelevents_bot',now=()=>Date.now(),today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Kyiv',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}) {
   const drafts=new Map();
   return async function handle(update) {
     const q=update.callback_query,m=q?.message||update.message,from=q?.from||m?.from;
@@ -84,7 +84,11 @@ export function createBot({allowedIds,read,save,reply,edit,answer=async()=>{},bo
     ]));};
     if(cb==='df_menu'||command==='/start'||command==='/help'){drafts.delete(user);return menu();}
     if(cb==='df_cancel'||command==='/cancel'){drafts.delete(user);return menu('Отменено.');}
-    if(cb==='df_stats'||command==='/stats')return say('📊 Статистика\n\nДобавим после запуска сайта на основном хостинге.',backMenu());
+    if(cb==='df_stats'||command==='/stats'||/^df_stats:(0|1|7|30)$/.test(cb||'')){
+      const days=cb?.startsWith('df_stats:')?Number(cb.split(':')[1]):0;
+      let report;try{report=await analyticsReport(days);}catch{report='Статистика временно недоступна. Попробуй позже.';}
+      return say(report,keyboard([[button('Сегодня','df_stats:1'),button('7 дней','df_stats:7'),button('30 дней','df_stats:30')],[button('За всё время','df_stats:0')],[button('Обновить',`df_stats:${days}`)],[button('🏠 Меню','df_menu')]]));
+    }
     if(cb==='df_list'||['/events','/list'].includes(command)){drafts.delete(user);return list();}
     if(cb?.startsWith('df_page:'))return list(Number(cb.split(':')[1])||0);
     if(cb==='df_add'||command==='/add'){drafts.set(user,{step:'date',event:{}});return say('Дата выступления в формате ДД.ММ.ГГГГ:\nНапример: 24.12.2026',cancelMenu());}
