@@ -3,10 +3,12 @@
   if(!['darkfeel.com.ua','www.darkfeel.com.ua'].includes(location.hostname))return;
   window.__darkfeelAnalytics=true;
   const id=()=>crypto.randomUUID();let visitor,sessionMemory;
-  try{visitor=localStorage.getItem('df_visitor')||id();localStorage.setItem('df_visitor',visitor);}catch{visitor=id();}
   let lastPath;
   function visit(){
-    if(document.visibilityState==='hidden'||lastPath===location.pathname)return;
+    if(!window.darkFeelAnalyticsAllowed?.()||document.visibilityState==='hidden'||lastPath===location.pathname)return;
+    if(!visitor){
+      try{visitor=localStorage.getItem('df_visitor')||id();localStorage.setItem('df_visitor',visitor);}catch{visitor=id();}
+    }
     lastPath=location.pathname;
     const now=Date.now();
     try{sessionMemory=JSON.parse(sessionStorage.getItem('df_session')||'null');}catch{}
@@ -19,5 +21,7 @@
     fetch('/api/analytics',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({visitor,session:sessionMemory.id,event:id(),path:location.pathname,source}),keepalive:true}).catch(()=>{});
   }
   for(const method of ['pushState','replaceState']){const original=history[method];history[method]=function(...args){const result=original.apply(this,args);visit();return result;};}
+  addEventListener('darkfeel-analytics-reset',()=>{visitor=undefined;sessionMemory=undefined;lastPath=undefined;});
+  addEventListener('darkfeel-analytics-enable',visit);
   addEventListener('popstate',visit);document.addEventListener('visibilitychange',visit);visit();
 })();

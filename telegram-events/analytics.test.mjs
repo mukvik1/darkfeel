@@ -26,9 +26,10 @@ test('bot reports selected periods to approved users only',async()=>{
 });
 test('tracker sends anonymous first-party data once and respects privacy signals',()=>{
  const source=fs.readFileSync(new URL('../railway-site/public/analytics.js',import.meta.url),'utf8');
- function run({hostname='darkfeel.com.ua',privacy=false,webdriver=false}={}){
+ function run({hostname='darkfeel.com.ua',privacy=false,webdriver=false,consent=true}={}){
   const requests=[],handlers={};const storage=()=>{const m=new Map();return {getItem:k=>m.get(k)||null,setItem:(k,v)=>m.set(k,v)}};
-  const ctx={window:{},navigator:{globalPrivacyControl:privacy,webdriver},crypto:{randomUUID},location:{hostname,pathname:'/',search:'?utm_source=instagram&private=secret'},document:{referrer:'',visibilityState:'visible',addEventListener:(k,f)=>handlers[k]=f},localStorage:storage(),sessionStorage:storage(),fetch:async(url,options)=>{requests.push({url,data:JSON.parse(options.body)});},history:{pushState:()=>{},replaceState:()=>{}},addEventListener:(k,f)=>handlers[k]=f,URL,URLSearchParams,Date};vm.runInNewContext(source,ctx);return {requests,handlers};
+  const ctx={window:{darkFeelAnalyticsAllowed:()=>consent},navigator:{globalPrivacyControl:privacy,webdriver},crypto:{randomUUID},location:{hostname,pathname:'/',search:'?utm_source=instagram&private=secret'},document:{referrer:'',visibilityState:'visible',addEventListener:(k,f)=>handlers[k]=f},localStorage:storage(),sessionStorage:storage(),fetch:async(url,options)=>{requests.push({url,data:JSON.parse(options.body)});},history:{pushState:()=>{},replaceState:()=>{}},addEventListener:(k,f)=>handlers[k]=f,URL,URLSearchParams,Date};vm.runInNewContext(source,ctx);return {requests,handlers,ctx};
  }
+ const refused=run({consent:false});refused.handlers.visibilitychange();assert.equal(refused.requests.length,0);assert.equal(refused.ctx.localStorage.getItem('df_visitor'),null);
  const normal=run();normal.handlers.visibilitychange();assert.equal(normal.requests.length,1);assert.equal(normal.requests[0].data.source,'instagram');assert.equal(normal.requests[0].data.path,'/');assert.equal(JSON.stringify(normal.requests).includes('secret'),false);assert.equal(run({privacy:true}).requests.length,0);assert.equal(run({webdriver:true}).requests.length,0);assert.equal(run({hostname:'old.chatgpt.site'}).requests.length,0);
 });
