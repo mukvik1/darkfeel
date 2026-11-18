@@ -26,25 +26,17 @@ footer{background:rgba(248,245,247,.95)}
 /* Privacy controls */
 [hidden]{display:none!important}
 .privacy-links{display:flex;flex-wrap:wrap;gap:18px;margin-bottom:22px;font-size:12px}
-.privacy-links a,.privacy-links button,.privacy-banner a,.privacy-dialog a,.privacy-policy p a,.media-placeholder a{text-decoration:underline;text-underline-offset:3px}
+.privacy-links a,.privacy-links button,.privacy-banner a,.privacy-policy p a{text-decoration:underline;text-underline-offset:3px}
 .privacy-links button{padding:0;border:0;background:none;color:inherit;font:inherit;cursor:pointer}
-.privacy-banner,.privacy-dialog{background:#f8f5f7;color:#242320;border:1px solid #d3d0cb;border-radius:12px;padding:20px}
+.privacy-banner{background:#f8f5f7;color:#242320;border:1px solid #d3d0cb;border-radius:12px;padding:20px}
 .privacy-banner{position:fixed;z-index:5;inset:auto 16px max(16px,env(safe-area-inset-bottom)) auto;width:min(490px,calc(100% - 32px));box-shadow:0 8px 30px #0002}
-.privacy-dialog{width:min(520px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto}
-.privacy-dialog::backdrop{background:#24232090}
-.privacy-banner h2,.privacy-dialog h2{font-size:22px;letter-spacing:-.4px;margin:0 0 8px}
-.privacy-banner p,.privacy-dialog p,.privacy-dialog a{font-size:14px;line-height:1.55}
-.privacy-banner p,.privacy-dialog p{margin:0 0 14px}
+.privacy-banner h2{font-size:22px;letter-spacing:-.4px;margin:0 0 8px}
+.privacy-banner p{font-size:14px;line-height:1.55}
+.privacy-banner p{margin:0 0 14px}
 .privacy-actions{display:flex;flex-wrap:wrap;gap:8px}
-.privacy-actions button,.media-placeholder button{font:inherit;font-size:13px;min-height:42px;cursor:pointer;color:inherit;background:transparent;border:1px solid currentColor;border-radius:24px;padding:8px 15px}
+.privacy-actions button{font:inherit;font-size:13px;min-height:42px;cursor:pointer;color:inherit;background:transparent;border:1px solid currentColor;border-radius:24px;padding:8px 15px}
 .privacy-actions button:hover{background:#242320;color:#fff}
-.privacy-actions button:focus-visible,.privacy-links button:focus-visible,.media-placeholder button:focus-visible{outline:2px solid var(--red);outline-offset:3px}
-.privacy-dialog .privacy-actions{margin:18px 0 14px}
-.privacy-option{display:flex;gap:10px;align-items:flex-start;padding:12px 0;border-top:1px solid #d3d0cb;font-size:15px}
-.privacy-option input{width:18px;height:18px;accent-color:var(--red)}
-.privacy-option small{display:block;margin-top:4px;font-size:13px}
-.media-placeholder{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;min-height:130px;padding:18px;text-align:center;border:1px solid #ffffff40;border-radius:12px;font-size:13px}
-.media-placeholder p{width:100%;margin:0;font-size:16px}
+.privacy-actions button:focus-visible,.privacy-links button:focus-visible{outline:2px solid var(--red);outline-offset:3px}
 .privacy-policy{margin:auto;width:min(100% - 40px,720px);padding:35px 0 65px}
 .privacy-policy h1{margin:45px 0 12px;font:600 clamp(34px,8vw,54px)/1.15 Manrope,Arial,sans-serif}
 .privacy-policy h2{margin:32px 0 8px;font-size:23px;letter-spacing:-.4px}

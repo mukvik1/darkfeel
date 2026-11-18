@@ -3,22 +3,19 @@
   const version = 1;
   const lifetime = 180 * 86400000;
   const banner = document.querySelector('#privacy-banner');
-  const dialog = document.querySelector('#privacy-dialog');
-  const privacyControls = document.querySelectorAll('[data-privacy-open]');
-  const players = document.querySelectorAll('[data-media-player]');
-  const analyticsInput = document.querySelector('#privacy-analytics');
-  const mediaInput = document.querySelector('#privacy-media');
+  const settings = document.querySelector('#privacy-footer-settings');
+  const accept = banner.querySelector('[data-privacy-accept]');
+  const reject = banner.querySelector('[data-privacy-reject]');
   let choice = readChoice();
   let analyticsScript;
-  let opener;
 
   function readChoice() {
     try {
       const value = JSON.parse(localStorage.getItem(storageKey));
       if (value?.version === version && Date.now() < value.expires &&
-          typeof value.analytics === 'boolean' && typeof value.media === 'boolean') return value;
+          typeof value.analytics === 'boolean') return value;
     } catch {
-      // Visitors can still choose for the current page when storage is unavailable.
+      // The choice still applies to this page when browser storage is unavailable.
     }
     return null;
   }
@@ -31,18 +28,10 @@
 
   function applyChoice() {
     banner.hidden = !!choice;
-    for (const player of players) {
-      const placeholder = player.querySelector('[data-media-placeholder]');
-      const existing = player.querySelector('iframe');
-      if (choice?.media && !existing) {
-        player.append(player.querySelector('template').content.cloneNode(true));
-      } else if (!choice?.media) {
-        existing?.remove();
-      }
-      placeholder.hidden = !!choice?.media;
-    }
     if (analyticsAllowed()) {
-      if (!analyticsScript) {
+      if (analyticsScript) {
+        window.dispatchEvent(new Event('darkfeel-analytics-enable'));
+      } else {
         analyticsScript = document.createElement('script');
         analyticsScript.src = '/analytics.js?v=2';
         document.head.append(analyticsScript);
@@ -56,42 +45,25 @@
     }
   }
 
-  function save(analytics, media) {
-    choice = { version, expires: Date.now() + lifetime, analytics, media };
+  function save(analytics) {
+    choice = { version, expires: Date.now() + lifetime, analytics };
     try { localStorage.setItem(storageKey, JSON.stringify(choice)); } catch {}
-    if (dialog.open) dialog.close();
     applyChoice();
-    if (analyticsAllowed()) window.dispatchEvent(new Event('darkfeel-analytics-enable'));
+    settings.focus({ preventScroll: true });
   }
 
-  function openSettings(event) {
-    opener = event?.currentTarget;
-    analyticsInput.checked = !!choice?.analytics;
-    mediaInput.checked = !!choice?.media;
-    if (!dialog.open) dialog.showModal();
+  function openSettings() {
+    banner.hidden = false;
+    (choice?.analytics ? accept : reject).focus({ preventScroll: true });
   }
 
-  for (const control of privacyControls) control.addEventListener('click', openSettings);
-  for (const control of document.querySelectorAll('[data-privacy-accept]')) {
-    control.addEventListener('click', () => save(true, true));
-  }
-  for (const control of document.querySelectorAll('[data-privacy-reject]')) {
-    control.addEventListener('click', () => save(false, false));
-  }
-  document.querySelector('#privacy-form').addEventListener('submit', event => {
-    event.preventDefault();
-    save(analyticsInput.checked, mediaInput.checked);
-  });
-  document.querySelector('#privacy-close').addEventListener('click', () => dialog.close());
-  dialog.addEventListener('close', () => {
-    if (opener && !opener.closest('[hidden]')) opener.focus();
-    else document.querySelector('#privacy-footer-settings').focus();
-  });
+  accept.addEventListener('click', () => save(true));
+  reject.addEventListener('click', () => save(false));
+  settings.addEventListener('click', openSettings);
   addEventListener('storage', event => {
     if (event.key !== storageKey && event.key !== null) return;
     choice = readChoice();
     applyChoice();
-    if (analyticsAllowed()) window.dispatchEvent(new Event('darkfeel-analytics-enable'));
   });
 
   applyChoice();
